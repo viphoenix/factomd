@@ -244,14 +244,14 @@ type BitcoinAnchorResponse struct {
 }
 
 type EthereumAnchorResponse struct {
-	DBHeightMax        int64  `json:"dbheightmax"`
-	DBHeightMin        int64  `json:"dbheightmin"`
-	WindowMR           string `json:"windowmr"`
-	RecordHeight       int64  `json:"recordheight"`
-	ContractAddress    string `json:"contractaddress"`
-	TxID               string `json:"txid"`
-	BlockHash          string `json:"blockhash"`
-	TxIndex            int64  `json:"txindex"`
+	DBHeightMax     int64  `json:"dbheightmax"`
+	DBHeightMin     int64  `json:"dbheightmin"`
+	WindowMR        string `json:"windowmr"`
+	RecordHeight    int64  `json:"recordheight"`
+	ContractAddress string `json:"contractaddress"`
+	TxID            string `json:"txid"`
+	BlockHash       string `json:"blockhash"`
+	TxIndex         int64  `json:"txindex"`
 }
 
 //Requests

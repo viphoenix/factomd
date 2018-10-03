@@ -8,22 +8,16 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/FactomProject/factomd/common/directoryBlock/dbInfo"
 	"github.com/FactomProject/factomd/common/interfaces"
 	"github.com/FactomProject/factomd/common/primitives"
-	"github.com/FactomProject/factomd/anchor"
 )
 
 type Receipt struct {
-	Entry                  *JSON                    `json:"entry,omitempty"`
-	MerkleBranch           []*primitives.MerkleNode `json:"merklebranch,omitempty"`
-	EntryBlockKeyMR        *primitives.Hash         `json:"entryblockkeymr,omitempty"`
-	DirectoryBlockKeyMR    *primitives.Hash         `json:"directoryblockkeymr,omitempty"`
-	DirectoryBlockHeight   uint32                   `json:"directoryblockheight,omitempty"`
-	EthereumAnchor         *anchor.AnchorRecord     `json:"ethereumanchor,omitempty"`
-
-	BitcoinTransactionHash *primitives.Hash         `json:"bitcointransactionhash,omitempty"`
-	BitcoinBlockHash       *primitives.Hash         `json:"bitcoinblockhash,omitempty"`
+	Entry                *JSON                    `json:"entry,omitempty"`
+	MerkleBranch         []*primitives.MerkleNode `json:"merklebranch,omitempty"`
+	EntryBlockKeyMR      *primitives.Hash         `json:"entryblockkeymr,omitempty"`
+	DirectoryBlockKeyMR  *primitives.Hash         `json:"directoryblockkeymr,omitempty"`
+	DirectoryBlockHeight uint32                   `json:"directoryblockheight,omitempty"`
 }
 
 func (e *Receipt) TrimReceipt() {
@@ -182,26 +176,6 @@ func (e *Receipt) IsSameAs(r *Receipt) bool {
 		}
 	} else {
 		if e.DirectoryBlockKeyMR.IsSameAs(r.DirectoryBlockKeyMR) == false {
-			return false
-		}
-	}
-
-	if e.BitcoinTransactionHash == nil {
-		if r.BitcoinTransactionHash != nil {
-			return false
-		}
-	} else {
-		if e.BitcoinTransactionHash.IsSameAs(r.BitcoinTransactionHash) == false {
-			return false
-		}
-	}
-
-	if e.BitcoinBlockHash == nil {
-		if r.BitcoinBlockHash != nil {
-			return false
-		}
-	} else {
-		if e.BitcoinBlockHash.IsSameAs(r.BitcoinBlockHash) == false {
 			return false
 		}
 	}
@@ -383,56 +357,6 @@ func CreateReceipt(dbo interfaces.DBOverlaySimple, entryID interfaces.IHash) (*R
 	hash = dBlock.DatabasePrimaryIndex()
 	receipt.DirectoryBlockKeyMR = hash.(*primitives.Hash)
 	receipt.DirectoryBlockHeight = dBlock.GetDatabaseHeight()
-
-
-	// Search for an AnchorRecord for the DBlock our entry is in
-	if dirBlockInfo, err := dbo.FetchDirBlockInfoByKeyMR(hash); err != nil {
-		return nil, err
-	} else if dirBlockInfo != nil {
-		// An anchor is already confirmed either Bitcoin or Ethereum for this directory block and was written back into Factom
-		dbi := dirBlockInfo.(*dbInfo.DirBlockInfo)
-
-		if dbi.BTCConfirmed {
-			receipt.BitcoinTransactionHash = dbi.BTCTxHash.(*primitives.Hash)
-			receipt.BitcoinBlockHash = dbi.BTCBlockHash.(*primitives.Hash)
-		}
-		if dbi.EthereumConfirmed && dbi.EthereumAnchorRecord != "" {
-			anchorRecord, err := anchor.UnmarshalAnchorRecord([]byte(dbi.EthereumAnchorRecord))
-			if err != nil {
-				return nil, err
-			}
-			receipt.EthereumAnchor = anchorRecord
-		}
-	}
-
-	if receipt.EthereumAnchor == nil {
-		// Didn't find the Ethereum anchor record in that block's DirBlockInfo, check next 999 DBlocks if available
-		for i := receipt.DirectoryBlockHeight + 1; i < receipt.DirectoryBlockHeight + 1000; i++ {
-			dirBlockKeyMR, err := dbo.FetchDBKeyMRByHeight(i)
-			if err != nil {
-				return nil, err
-			} else if dirBlockKeyMR == nil {
-				break
-			}
-
-			dirBlockInfo, err := dbo.FetchDirBlockInfoByKeyMR(dirBlockKeyMR);
-			if err != nil {
-				return nil, err
-			} else if dirBlockInfo == nil {
-				continue
-			}
-
-			dbi := dirBlockInfo.(*dbInfo.DirBlockInfo)
-			if dbi.EthereumConfirmed && dbi.EthereumAnchorRecord != "" {
-				anchorRecord, err := anchor.UnmarshalAnchorRecord([]byte(dbi.EthereumAnchorRecord))
-				if err != nil {
-					return nil, err
-				}
-				receipt.EthereumAnchor = anchorRecord
-				break
-			}
-		}
-	}
 
 	return receipt, nil
 
