@@ -75,97 +75,66 @@ func HandleV2Request(state interfaces.IState, j *primitives.JSON2Request) (*prim
 	switch j.Method {
 	case "chain-head":
 		resp, jsonError = HandleV2ChainHead(state, params)
-		break
 	case "commit-chain":
 		resp, jsonError = HandleV2CommitChain(state, params)
-		break
 	case "commit-entry":
 		resp, jsonError = HandleV2CommitEntry(state, params)
-		break
 	case "current-minute":
 		resp, jsonError = HandleV2CurrentMinute(state, params)
-		break
 	case "directory-block":
 		resp, jsonError = HandleV2DirectoryBlock(state, params)
-		break
 	case "directory-block-head":
 		resp, jsonError = HandleV2DirectoryBlockHead(state, params)
-		break
 	case "entry-block":
 		resp, jsonError = HandleV2EntryBlock(state, params)
-		break
 	case "admin-block":
 		resp, jsonError = HandleV2AdminBlock(state, params)
-		break
 	case "factoid-block":
 		resp, jsonError = HandleV2FactoidBlock(state, params)
-		break
 	case "entrycredit-block":
 		resp, jsonError = HandleV2EntryCreditBlock(state, params)
-		break
 	case "entry":
 		resp, jsonError = HandleV2Entry(state, params)
-		break
 	case "entry-credit-balance":
 		resp, jsonError = HandleV2EntryCreditBalance(state, params)
-		break
 	case "entry-credit-rate":
 		resp, jsonError = HandleV2EntryCreditRate(state, params)
-		break
 	case "factoid-balance":
 		resp, jsonError = HandleV2FactoidBalance(state, params)
-		break
 	case "factoid-submit":
 		resp, jsonError = HandleV2FactoidSubmit(state, params)
-		break
 	case "heights":
 		resp, jsonError = HandleV2Heights(state, params)
-		break
 	case "properties":
 		resp, jsonError = HandleV2Properties(state, params)
-		break
 	case "raw-data":
 		resp, jsonError = HandleV2RawData(state, params)
-		break
 	case "receipt":
 		resp, jsonError = HandleV2Receipt(state, params)
-		break
 	case "reveal-chain":
 		resp, jsonError = HandleV2RevealChain(state, params)
-		break
 	case "reveal-entry":
 		resp, jsonError = HandleV2RevealEntry(state, params)
-		break
 	case "factoid-ack":
 		resp, jsonError = HandleV2FactoidACK(state, params)
-		break
 	case "entry-ack":
 		resp, jsonError = HandleV2EntryACK(state, params)
-		break
 	case "pending-entries":
 		resp, jsonError = HandleV2GetPendingEntries(state, params)
-		break
 	case "pending-transactions":
 		resp, jsonError = HandleV2GetPendingTransactions(state, params)
-		break
 	case "send-raw-message":
 		resp, jsonError = HandleV2SendRawMessage(state, params)
-		break
 	case "transaction":
 		resp, jsonError = HandleV2GetTranasction(state, params)
-		break
 	case "dblock-by-height":
 		resp, jsonError = HandleV2DBlockByHeight(state, params)
-		break
 	case "ecblock-by-height":
 		resp, jsonError = HandleV2ECBlockByHeight(state, params)
-		break
 	case "fblock-by-height":
 		resp, jsonError = HandleV2FBlockByHeight(state, params)
-		break
 	case "ablock-by-height":
 		resp, jsonError = HandleV2ABlockByHeight(state, params)
-		break
 	case "authorities":
 		resp, jsonError = HandleAuthorities(state, params)
 	case "tps-rate":
@@ -180,7 +149,6 @@ func HandleV2Request(state interfaces.IState, j *primitives.JSON2Request) (*prim
 		// resp, jsonError = HandleV2Accounts(state, params)
 	default:
 		jsonError = NewMethodNotFoundError()
-		break
 	}
 	if jsonError != nil {
 		return nil, jsonError
