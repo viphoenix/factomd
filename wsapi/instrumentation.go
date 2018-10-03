@@ -95,6 +95,11 @@ var (
 		Help: "Time it takes to compelete a rawdata",
 	})
 
+	HandleV2APICallAnchorsByHeight = prometheus.NewSummary(prometheus.SummaryOpts{
+		Name: "factomd_wsapi_v2_api_call_anchorsbyheight_ns",
+		Help: "Time it takes to compelete a ",
+	})
+
 	HandleV2APICallReceipt = prometheus.NewSummary(prometheus.SummaryOpts{
 		Name: "factomd_wsapi_v2_api_call_receipt_ns",
 		Help: "Time it takes to compelete a ",

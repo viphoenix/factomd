@@ -25,6 +25,8 @@ import (
 	"github.com/FactomProject/factomd/common/primitives"
 	"github.com/FactomProject/factomd/receipts"
 	"github.com/FactomProject/web"
+	"github.com/FactomProject/factomd/common/directoryBlock/dbInfo"
+	"github.com/FactomProject/factomd/anchor"
 )
 
 const API_VERSION string = "2.0"
@@ -73,6 +75,8 @@ func HandleV2Request(state interfaces.IState, j *primitives.JSON2Request) (*prim
 	var jsonError *primitives.JSONError
 	params := j.Params
 	switch j.Method {
+	case "anchors-by-height":
+		resp, jsonError = HandleV2AnchorsByHeight(state, params)
 	case "chain-head":
 		resp, jsonError = HandleV2ChainHead(state, params)
 	case "commit-chain":
@@ -697,6 +701,93 @@ func HandleV2RawData(state interfaces.IState, params interface{}) (interface{}, 
 	d := new(RawDataResponse)
 	d.Data = hex.EncodeToString(b)
 	return d, nil
+}
+
+func HandleV2AnchorsByHeight(state interfaces.IState, params interface{}) (interface{}, *primitives.JSONError) {
+	n := time.Now()
+	defer HandleV2APICallAnchorsByHeight.Observe(float64(time.Since(n).Nanoseconds()))
+
+	request := new(HeightRequest)
+	err := MapToObject(params, request)
+	if err != nil {
+		return nil, NewInvalidParamsError()
+	}
+
+	dbo := state.GetDB()
+	hash, err := dbo.FetchDBKeyMRByHeight(uint32(request.Height))
+	if err != nil {
+		return nil, NewBlockNotFoundError()
+	}
+
+	resp := new(AnchorsResponse)
+
+	// Search for an AnchorRecord for the DBlock our entry is in
+	if dirBlockInfo, err := dbo.FetchDirBlockInfoByKeyMR(hash); err != nil {
+		return nil, NewBlockNotFoundError()
+	} else if dirBlockInfo != nil {
+		// An anchor is already confirmed either Bitcoin or Ethereum for this directory block and was written back into Factom
+		dbi := dirBlockInfo.(*dbInfo.DirBlockInfo)
+
+		if dbi.BTCConfirmed {
+			resp.Bitcoin = new(BitcoinAnchorResponse)
+			resp.Bitcoin.TransactionHash = dbi.BTCTxHash.(*primitives.Hash)
+			resp.Bitcoin.BlockHash = dbi.BTCBlockHash.(*primitives.Hash)
+		}
+		if dbi.EthereumConfirmed && dbi.EthereumAnchorRecord != "" {
+			anchorRecord, err := anchor.UnmarshalAnchorRecord([]byte(dbi.EthereumAnchorRecord))
+			if err != nil {
+				return nil, NewCustomInternalError(err)
+			}
+			resp.Ethereum = new(EthereumAnchorResponse)
+			resp.Ethereum.DBHeightMax = int64(anchorRecord.DBHeightMax)
+			resp.Ethereum.DBHeightMin = int64(anchorRecord.DBHeightMin)
+			resp.Ethereum.WindowMR = anchorRecord.WindowMR
+			resp.Ethereum.RecordHeight = int64(anchorRecord.RecordHeight)
+			resp.Ethereum.ContractAddress = anchorRecord.Ethereum.ContractAddress
+			resp.Ethereum.TxID = anchorRecord.Ethereum.TxID
+			resp.Ethereum.BlockHash = anchorRecord.Ethereum.BlockHash
+			resp.Ethereum.TxIndex = anchorRecord.Ethereum.TxIndex
+		}
+	}
+
+	// If we didn't find the Ethereum anchor in that block's DirBlockInfo, try checking following 999 DBlocks
+	if resp.Ethereum == nil {
+		for i := request.Height + 1; i < request.Height + 1000; i++ {
+			dirBlockKeyMR, err := dbo.FetchDBKeyMRByHeight(uint32(i))
+			if err != nil {
+				return nil, NewBlockNotFoundError()
+			} else if dirBlockKeyMR == nil {
+				break
+			}
+
+			dirBlockInfo, err := dbo.FetchDirBlockInfoByKeyMR(dirBlockKeyMR)
+			if err != nil {
+				return nil, NewBlockNotFoundError()
+			} else if dirBlockInfo == nil {
+				continue
+			}
+
+			dbi := dirBlockInfo.(*dbInfo.DirBlockInfo)
+			if dbi.EthereumConfirmed && dbi.EthereumAnchorRecord != "" {
+				anchorRecord, err := anchor.UnmarshalAnchorRecord([]byte(dbi.EthereumAnchorRecord))
+				if err != nil {
+					return nil, NewCustomInternalError(err)
+				}
+				resp.Ethereum = new(EthereumAnchorResponse)
+				resp.Ethereum.DBHeightMax = int64(anchorRecord.DBHeightMax)
+				resp.Ethereum.DBHeightMin = int64(anchorRecord.DBHeightMin)
+				resp.Ethereum.WindowMR = anchorRecord.WindowMR
+				resp.Ethereum.RecordHeight = int64(anchorRecord.RecordHeight)
+				resp.Ethereum.ContractAddress = anchorRecord.Ethereum.ContractAddress
+				resp.Ethereum.TxID = anchorRecord.Ethereum.TxID
+				resp.Ethereum.BlockHash = anchorRecord.Ethereum.BlockHash
+				resp.Ethereum.TxIndex = anchorRecord.Ethereum.TxIndex
+				break
+			}
+		}
+	}
+
+	return resp, nil
 }
 
 func HandleV2Receipt(state interfaces.IState, params interface{}) (interface{}, *primitives.JSONError) {
