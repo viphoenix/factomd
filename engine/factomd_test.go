@@ -1947,18 +1947,17 @@ func randomFctAddressPair() (string, string) {
 }
 
 func TestProcessedBlockFailure(t *testing.T) {
-	// test was for an existing non-zero balance after grant then trying to remove
 	if ranSimTest {
 		return
 	}
+	ranSimTest = true
 
+	// a genesis block address w/ funding
 	bankSecret := "Fs3E9gV6DXsYzf7Fqx1fVBQPQXV695eP3k5XbmHEZVRLkMdD9qCK"
 	bankAddress := "FA2jK2HcLnRdS94dEcU27rF3meoJfpUcZPSinpb7AwQvPRY6RL1Q"
 	_ = bankAddress
 	_ = bankSecret
 
-
-    // TODO: alter to generate an arbitrary number of secrets
 	var depositSecrets []string
 	var depositAddresses []string
 
@@ -1968,37 +1967,30 @@ func TestProcessedBlockFailure(t *testing.T) {
 		depositAddresses = append(depositAddresses, addr)
 	}
 
-	var maxBlocks = 120
-
-	ranSimTest = true
+	var maxBlocks = 200
 	state0 := SetupSim("LAF", map[string]string{"--debuglog": ".",}, maxBlocks+1, 0, 0, t)
 	var ecPrice uint64 = state0.GetFactoshisPerEC() //10000
 	var oneFct uint64 = factom.FactoidToFactoshi("1")
 
 	waitForDeposit := func(i int, amt uint64) uint64 {
 		balance := getBalance(state0, depositAddresses[i])
+		TimeNow(state0)
 		fmt.Printf("%v waitForDeposit %v %v - %v = diff: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
 		var waited bool
 		for balance != int64(amt) {
 			waited = true
 			balance = getBalance(state0, depositAddresses[i])
-			// TODO add timeout
+			time.Sleep(time.Millisecond*100)
 		}
 		if waited {
 			fmt.Printf("%v waitForDeposit %v %v - %v = diff: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
+			TimeNow(state0)
 		}
-		TimeNow(state0)
 		return uint64(balance)
 	}
 	_ = waitForDeposit
 
-	// REVIEW: test seems to fail reliably when this delay is set to 100ms - goes away at 300ms
-	// meaning both addresses show a balance > 0 at the same time
-	//x := 100 // fail
-	//x := 300 // pass
-
-	//interval := time.Duration(x)*time.Millisecond // ms
-
+	initialBalance := 10*oneFct
 	fee := 12*ecPrice
 
 	prepareTransactions := func(bal uint64) ([]func(), uint64, int) {
@@ -2019,47 +2011,33 @@ func TestProcessedBlockFailure(t *testing.T) {
 			}
 			transactions = append(transactions, txn)
 		}
-
 		return transactions, bal, i
 	}
 
 	mkTransactions := func() { // txnGenerator
-
-		initialBalance := 10*oneFct
-
 		// fund the start address
 		sendTxn(state0, initialBalance, bankSecret, depositAddresses[0], ecPrice)
 		WaitMinutes(state0, 1)
 		waitForDeposit(0, initialBalance)
-
         transactions, finalBalance, finalAddress := prepareTransactions(initialBalance)
 
-
-        // TODO Report on order of execution
 		var randomSeed int64 = time.Now().Unix()
-		r := rand.New(rand.NewSource(randomSeed))
-		_ = r
-
 		var i int
 		var sent []int
 
-		// send in random order
+		r := rand.New(rand.NewSource(randomSeed))
 		for _, i = range r.Perm(len(transactions))  {
 		    sent = append(sent, i)
 			transactions[i]()
 		}
-		fmt.Printf("send list randomSeed : %v \n", randomSeed)
-
+		fmt.Printf("send chained transations ordered by randomSeed : %v \n", randomSeed)
 		waitForDeposit(finalAddress, finalBalance)
 
-		// empty final address
+		// empty final address returning remaining funds to bank
 		sendTxn(state0, finalBalance-fee, depositSecrets[finalAddress], bankAddress, ecPrice)
-		//WaitMinutes(state0, 1)
 		waitForDeposit(finalAddress, 0)
 	}
 	_ = mkTransactions
-
-	WaitForBlock(state0, 6)
 
 	for i:= 0; i< 80; i++ {
 		mkTransactions()
