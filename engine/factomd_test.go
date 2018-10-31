@@ -1997,12 +1997,6 @@ func TestProcessedBlockFailure(t *testing.T) {
 		"FA3TXHciP5BuuHXpK1q2RU8RRjvVWtFirqbbfwiNmuemz6k4s9GC",
 	}
 
-	var randomSeed int64 = time.Now().Unix()
-	r := rand.New(rand.NewSource(randomSeed))
-
-	var randomWallets []int = r.Perm(len(depositAddresses))
-	fmt.Printf("wallet seed: %v order: %v\n", randomSeed, randomWallets)
-
 	var maxBlocks = 120
 
 	ranSimTest = true
@@ -2012,11 +2006,12 @@ func TestProcessedBlockFailure(t *testing.T) {
 
 	waitForDeposit := func(i int, amt uint64) uint64 {
 		balance := getBalance(state0, depositAddresses[i])
-		fmt.Printf("%v waitForDeposit %v %v - %v = %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
+		fmt.Printf("%v waitForDeposit %v %v - %v = missing: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
 		for balance != int64(amt) {
 			balance = getBalance(state0, depositAddresses[i])
 			// TODO add timeout
 		}
+		fmt.Printf("%v waitForDeposit %v %v - %v = missing: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
 		TimeNow(state0)
 		return uint64(balance)
 	}
@@ -2034,27 +2029,23 @@ func TestProcessedBlockFailure(t *testing.T) {
 	prepareTransactions := func(bal uint64) ([]func(), uint64, int) {
 
 		var transactions []func()
-
 		var i int
-		var a int
-		var b int
 
-		for i = 0; i < len(randomWallets)-1; i += 1 {
+		for i = 0; i < len(depositAddresses)-1; i += 1 {
 			bal -= fee
-			a = randomWallets[i]
-			b = randomWallets[i+1]
 
-			in := a
-			out := b
+			in := i
+			out := i+1
+			send := bal
 
 			txn := func() {
-				fmt.Printf("TXN %v %v => %v \n", bal, depositAddresses[in], depositAddresses[out])
-				sendTxn(state0, bal, depositSecrets[in], depositAddresses[out], ecPrice)
+				fmt.Printf("TXN %v %v => %v \n", send, depositAddresses[in], depositAddresses[out])
+				sendTxn(state0, send, depositSecrets[in], depositAddresses[out], ecPrice)
 			}
 			transactions = append(transactions, txn)
 		}
 
-		return transactions, bal, b
+		return transactions, bal, i
 	}
 
 	mkTransactions := func() { // txnGenerator
@@ -2068,22 +2059,44 @@ func TestProcessedBlockFailure(t *testing.T) {
 
         transactions, finalBalance, finalAddress := prepareTransactions(initialBalance)
 
-        _ = finalAddress
-        _ = finalBalance
-        _ = transactions
 
+        // TODO Report on order of execution
+		var randomSeed int64 = time.Now().Unix()
+		r := rand.New(rand.NewSource(randomSeed))
+		_ = r
 
-		for i := range r.Perm(len(transactions))  {
+		var i int
+
+		/*
+		var sent int[]
+		// send in random order
+		for i = range r.Perm(len(transactions))  {
+		    sent = append(sent, i)
+			transactions[i]()
+		}
+		frmt.Printf("send seed: %v order: %v", randomSeed, sent)
+		*/
+
+		// send in order
+		for i = 0; i < len(transactions); i++ {
 			transactions[i]()
 		}
 
 		waitForDeposit(finalAddress, finalBalance)
+
+		// empty final address
+		sendTxn(state0, finalBalance-fee, depositSecrets[finalAddress], bankAddress, ecPrice)
+		//WaitMinutes(state0, 1)
+		waitForDeposit(finalAddress, 0)
 	}
 	_ = mkTransactions
 
 	WaitForBlock(state0, 6)
-	mkTransactions()
-	//WaitForBlock(state0, maxBlocks)
+
+	for i:= 0; i< 80; i++ {
+		mkTransactions()
+		WaitBlocks(state0, 1)
+	}
 
 	WaitForAllNodes(state0)
 	shutDownEverything(t)
