@@ -2006,12 +2006,16 @@ func TestProcessedBlockFailure(t *testing.T) {
 
 	waitForDeposit := func(i int, amt uint64) uint64 {
 		balance := getBalance(state0, depositAddresses[i])
-		fmt.Printf("%v waitForDeposit %v %v - %v = missing: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
+		fmt.Printf("%v waitForDeposit %v %v - %v = diff: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
+		var waited bool
 		for balance != int64(amt) {
+			waited = true
 			balance = getBalance(state0, depositAddresses[i])
 			// TODO add timeout
 		}
-		fmt.Printf("%v waitForDeposit %v %v - %v = missing: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
+		if waited {
+			fmt.Printf("%v waitForDeposit %v %v - %v = diff: %v \n", i, depositAddresses[i], balance, amt, balance-int64(amt))
+		}
 		TimeNow(state0)
 		return uint64(balance)
 	}
@@ -2066,21 +2070,14 @@ func TestProcessedBlockFailure(t *testing.T) {
 		_ = r
 
 		var i int
+		var sent []int
 
-		/*
-		var sent int[]
 		// send in random order
-		for i = range r.Perm(len(transactions))  {
+		for _, i = range r.Perm(len(transactions))  {
 		    sent = append(sent, i)
 			transactions[i]()
 		}
-		frmt.Printf("send seed: %v order: %v", randomSeed, sent)
-		*/
-
-		// send in order
-		for i = 0; i < len(transactions); i++ {
-			transactions[i]()
-		}
+		fmt.Printf("send seed: %v order: %v\n", randomSeed, sent)
 
 		waitForDeposit(finalAddress, finalBalance)
 
