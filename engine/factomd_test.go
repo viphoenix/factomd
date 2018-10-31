@@ -1937,6 +1937,15 @@ func getBalance(s *state.State, userStr string) int64 {
 	return s.FactoidState.GetFactoidBalance(factoid.NewAddress(primitives.ConvertUserStrToAddress(userStr)).Fixed())
 }
 
+// generate a pair of user-strings Fs.., FA..
+func randomFctAddressPair() (string, string) {
+	pkey := primitives.RandomPrivateKey()
+	privUserStr, _ := primitives.PrivateKeyStringToHumanReadableFactoidPrivateKey(pkey.PrivateKeyString())
+	_, _, pubUserStr,_ := factoid.PrivateKeyStringToEverythingString(pkey.PrivateKeyString())
+
+	return privUserStr, pubUserStr
+}
+
 func TestProcessedBlockFailure(t *testing.T) {
 	// test was for an existing non-zero balance after grant then trying to remove
 	if ranSimTest {
@@ -1948,53 +1957,15 @@ func TestProcessedBlockFailure(t *testing.T) {
 	_ = bankAddress
 	_ = bankSecret
 
-	/*
-	Clay [6:55 PM]
-	New theory. Setup an array of account 0 to N. Make transactions to move the money 0->1, 1->2, 2->3...N-1->N.
-	These messages can be sent for execute in any order and should complete with (initial balance - N*fee).
-	Run them in an order, wait till the balance in N goes to the expected value; Permute order and repeat.
-	If you align each run to the start of a block and the set takes > 1 block then all permutations timing alignments should occur.
-	If you print the permutation number then you should be able to start the test at any permutation with no need to rerun prior permutations if you find a failing case.
-	With 10 seconds block and 70 TPS somewhere north of 70 transfers are needed in each set, use maybe 120,  and two blocks per run... (edited)
-	 */
-
 
     // TODO: alter to generate an arbitrary number of secrets
-	var depositSecrets []string = []string{
-		"Fs3CLRgDCxAM6TGpHDNfjLdEcbHZ1LyhUmMRG9w3aVTSPTeZ2hLk",
-		"Fs28Sn5SQpYQsHmXogseoe8kweCAwq76ZSTDv2RopLnhgZdigdDX",
-		"Fs1suvivoTkDBhtUwVPSzyX7xp75whpdDCLQZyFGFmHxDue2RRBy",
+	var depositSecrets []string
+	var depositAddresses []string
 
-		"Fs3FztiJ2xVHHEUkg5hRCYikGr4LtF7pVqPzt9syH5dsjQye2K3p",
-		"Fs2d9VBdBN3xmdmWcrMV1Mw7WzMq3sZaD2a1LmfhncDwFGwdJnrs",
-		"Fs1j2DjuumzZck3P5K61jyo4xRwWTGHLGd6MTgLVvifRtRPgckZt",
-
-		"Fs2sMtc1Uy4tUCnH2UEjtuXW2NgXtUxtVQUYUS6e194M76ZdnR9p",
-		"Fs1Uhbhr4HwViZML8xZ6XW4g3uCDzmxY8sKk439LfEVoFX4eNtBj",
-		"Fs39pZj8zGU7hrTrHZp1aovmi4AXu4UcQBauiuTZ7rWfhH9umF6H",
-
-		"Fs3FRfwoA1ktjwjo51cxJe7gxHDhGMqJVEJHpNfVab2YQYAs5Pom",
-		"Fs2kkTSGes9nSvYyD1rCS53n6oPdMDTmLWAyvWERxj1ztdqYFypZ",
-		"Fs2iJPkytTCMAzQhmYYQtx6ZDioeBQiQvyWaZtho8uqYwKXfHsD7",
-	}
-	_ = depositSecrets
-
-	var depositAddresses []string = []string{
-		"FA2fSWi2cPdqRFxCHSa9EHSt22ueDtetCbsxM7mu3jadHFANUMcD",
-		"FA2imSqvmcaENqkSLFu6EW19eytxvSsM58R4Sq8Q5KkMr93LBmC4",
-		"FA2nWRFi4nN9mwFCYfe4BqqyKo65DQZaHxY5GqJnkh5D7T3VWMdj",
-
-		"FA32ZKrNXSh3WXnARih4oDuoy8BWZ3ad9LbTCnqSC8m39Nu9dWX5",
-		"FA2mpvrsw9FNempyM9TzXoCpx9kBfUWrdjuGAzJYwvCcTZwg2HWn",
-		"FA3Vatob7LQK8sTRRUED64XL7W8LhQRzwDYXYY1Sc3dGqm6Htk6B",
-
-		"FA2cBzw6uZcesfMssu1aEJxjSfjGcSRh7MwhFQNmxR1usqQ2BsyS",
-		"FA37zc6uyn8BPAp1SbCj4pT7HpKkppQ6MPd31VbZAaNo9Zc41H94",
-		"FA2B7T67sT5ywD5LPqbCDtoYRNzy2NjJSKDbJhLDDAmevQ8mSqZ1",
-
-		"FA2SXSXsydkeTDk7G9uLUhrHakgihDrqpGgScjm1r7gWKu5iNtPs",
-		"FA3PjmAQModGMRQ1c5F9ukj84dHSpHBLd5qFNfKzWJhukDvYF8fP",
-		"FA3TXHciP5BuuHXpK1q2RU8RRjvVWtFirqbbfwiNmuemz6k4s9GC",
+	for i:=0; i<120; i++  {
+		priv, addr := randomFctAddressPair()
+		depositSecrets = append(depositSecrets, priv)
+		depositAddresses = append(depositAddresses, addr)
 	}
 
 	var maxBlocks = 120
@@ -2043,7 +2014,7 @@ func TestProcessedBlockFailure(t *testing.T) {
 			send := bal
 
 			txn := func() {
-				fmt.Printf("TXN %v %v => %v \n", send, depositAddresses[in], depositAddresses[out])
+				//fmt.Printf("TXN %v %v => %v \n", send, depositAddresses[in], depositAddresses[out])
 				sendTxn(state0, send, depositSecrets[in], depositAddresses[out], ecPrice)
 			}
 			transactions = append(transactions, txn)
@@ -2077,7 +2048,7 @@ func TestProcessedBlockFailure(t *testing.T) {
 		    sent = append(sent, i)
 			transactions[i]()
 		}
-		fmt.Printf("send seed: %v order: %v\n", randomSeed, sent)
+		fmt.Printf("send list randomSeed : %v \n", randomSeed)
 
 		waitForDeposit(finalAddress, finalBalance)
 
