@@ -11,6 +11,7 @@ import (
 	"github.com/FactomProject/factomd/common/messages"
 	"github.com/FactomProject/factomd/common/primitives/random"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"reflect"
@@ -1942,17 +1943,23 @@ func TestProcessedBlockFailure(t *testing.T) {
 		return
 	}
 
-	ranSimTest = true
-
-	state0 := SetupSim("LAF", map[string]string{"--debuglog": ".", "--faulttimeout": "10", "--blktime": "5"}, 10, 0, 0, t)
-
-	var ecPrice uint64 = state0.GetFactoshisPerEC() //10000
-	var oneFct uint64 = factom.FactoidToFactoshi("1")
-
 	bankSecret := "Fs3E9gV6DXsYzf7Fqx1fVBQPQXV695eP3k5XbmHEZVRLkMdD9qCK"
 	bankAddress := "FA2jK2HcLnRdS94dEcU27rF3meoJfpUcZPSinpb7AwQvPRY6RL1Q"
 	_ = bankAddress
+	_ = bankSecret
 
+	/*
+	Clay [6:55 PM]
+	New theory. Setup an array of account 0 to N. Make transactions to move the money 0->1, 1->2, 2->3...N-1->N.
+	These messages can be sent for execute in any order and should complete with (initial balance - N*fee).
+	Run them in an order, wait till the balance in N goes to the expected value; Permute order and repeat.
+	If you align each run to the start of a block and the set takes > 1 block then all permutations timing alignments should occur.
+	If you print the permutation number then you should be able to start the test at any permutation with no need to rerun prior permutations if you find a failing case.
+	With 10 seconds block and 70 TPS somewhere north of 70 transfers are needed in each set, use maybe 120,  and two blocks per run... (edited)
+	 */
+
+
+    // TODO: alter to generate an arbitrary number of secrets
 	var depositSecrets []string = []string{
 		"Fs3CLRgDCxAM6TGpHDNfjLdEcbHZ1LyhUmMRG9w3aVTSPTeZ2hLk",
 		"Fs28Sn5SQpYQsHmXogseoe8kweCAwq76ZSTDv2RopLnhgZdigdDX",
@@ -1990,7 +1997,18 @@ func TestProcessedBlockFailure(t *testing.T) {
 		"FA3TXHciP5BuuHXpK1q2RU8RRjvVWtFirqbbfwiNmuemz6k4s9GC",
 	}
 
-	var maxBlocks = 8
+	var randomSeed int64 = time.Now().Unix()
+	r := rand.New(rand.NewSource(randomSeed))
+
+	var randomWallets []int = r.Perm(len(depositAddresses))
+	fmt.Printf("wallet seed: %v order: %v\n", randomSeed, randomWallets)
+
+	var maxBlocks = 120
+
+	ranSimTest = true
+	state0 := SetupSim("LAF", map[string]string{"--debuglog": ".",}, maxBlocks+1, 0, 0, t)
+	var ecPrice uint64 = state0.GetFactoshisPerEC() //10000
+	var oneFct uint64 = factom.FactoidToFactoshi("1")
 
 	waitForDeposit := func(i int, amt uint64) uint64 {
 		balance := getBalance(state0, depositAddresses[i])
@@ -2002,79 +2020,70 @@ func TestProcessedBlockFailure(t *testing.T) {
 		TimeNow(state0)
 		return uint64(balance)
 	}
+	_ = waitForDeposit
 
 	// REVIEW: test seems to fail reliably when this delay is set to 100ms - goes away at 300ms
 	// meaning both addresses show a balance > 0 at the same time
+	//x := 100 // fail
 	//x := 300 // pass
-	x := 100 // fail
 
-	interval := time.Duration(x)*time.Millisecond // ms
+	//interval := time.Duration(x)*time.Millisecond // ms
 
 	fee := 12*ecPrice
-	pingCount := 0
-	mkTransactions := func(waitBlock int, waitMinute int) { // txnGenerator
-		WaitForBlock(state0, waitBlock)
 
-		bal := 10*oneFct
+	prepareTransactions := func(bal uint64) ([]func(), uint64, int) {
+
+		var transactions []func()
+
+		var i int
+		var a int
+		var b int
+
+		for i = 0; i < len(randomWallets)-1; i += 1 {
+			bal -= fee
+			a = randomWallets[i]
+			b = randomWallets[i+1]
+
+			in := a
+			out := b
+
+			txn := func() {
+				fmt.Printf("TXN %v %v => %v \n", bal, depositAddresses[in], depositAddresses[out])
+				sendTxn(state0, bal, depositSecrets[in], depositAddresses[out], ecPrice)
+			}
+			transactions = append(transactions, txn)
+		}
+
+		return transactions, bal, b
+	}
+
+	mkTransactions := func() { // txnGenerator
+
+		initialBalance := 10*oneFct
 
 		// fund the start address
-		sendTxn(state0, bal, bankSecret, depositAddresses[0], ecPrice)
-		WaitForMinute(state0, waitMinute)
-		waitForDeposit(0, bal)
+		sendTxn(state0, initialBalance, bankSecret, depositAddresses[0], ecPrice)
+		WaitMinutes(state0, 1)
+		waitForDeposit(0, initialBalance)
 
-		println("->ping-pong<-")
-		for pingCount < 2 {
+        transactions, finalBalance, finalAddress := prepareTransactions(initialBalance)
 
-			bal = bal - fee
-			pingBal := bal
-			bal = bal - fee
-			pongBal := bal
-
-			ping := func() {
-				fmt.Printf("TXN %v %v => %v \n", pingBal, depositAddresses[0], depositAddresses[1])
-				sendTxn(state0, pingBal, depositSecrets[0], depositAddresses[1], ecPrice)
-			}
-			pong := func() {
-				fmt.Printf("TXN %v %v => %v \n", pongBal, depositAddresses[1], depositAddresses[0])
-				sendTxn(state0, pongBal, depositSecrets[1], depositAddresses[0], ecPrice)
-			}
+        _ = finalAddress
+        _ = finalBalance
+        _ = transactions
 
 
-			if pingCount%2 == 1 {
-				println("txn in order")
-				// in order
-				ping()
-				pong()
-			} else {
-				// reverse order
-				println("txn in reverse")
-				pong()
-				ping()
-			}
-			pingCount++
-			time.Sleep(interval)
+		for i := range r.Perm(len(transactions))  {
+			transactions[i]()
 		}
+
+		waitForDeposit(finalAddress, finalBalance)
 	}
 	_ = mkTransactions
 
-	go mkTransactions(6, 0)
-
-	WaitForBlock(state0, maxBlocks)
-
-	fmt.Printf("sent %v pings\n", pingCount)
-
-	bal0 := getBalance(state0, depositAddresses[0])
-	bal1 := getBalance(state0, depositAddresses[1])
-	spent := int64(10*oneFct) - (bal0+bal1)
-
-	fmt.Printf(" %v => %v\n", depositAddresses[0], bal0)
-	fmt.Printf(" %v => %v\n", depositAddresses[1], bal1)
-	fmt.Printf(" burn => %v*fee =%v \n", spent/int64(fee), spent)
-
-	WaitMinutes(state0, 1)
-
-	AssertEquals(t, bal0, int64(10*oneFct-4*fee))
-	AssertEquals(t, bal1, int64(0))
+	WaitForBlock(state0, 6)
+	mkTransactions()
+	//WaitForBlock(state0, maxBlocks)
 
 	WaitForAllNodes(state0)
 	shutDownEverything(t)
