@@ -1966,7 +1966,7 @@ func TestProcessedBlockFailure(t *testing.T) {
 		depositAddresses = append(depositAddresses, addr)
 	}
 
-	var maxBlocks = 200
+	var maxBlocks = 500
 	state0 := SetupSim("LAF", map[string]string{"--debuglog": ".",}, maxBlocks+1, 0, 0, t)
 	var ecPrice uint64 = state0.GetFactoshisPerEC() //10000
 	var oneFct uint64 = factom.FactoidToFactoshi("1")
