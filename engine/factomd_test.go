@@ -2024,6 +2024,7 @@ func TestProcessedBlockFailure(t *testing.T) {
         transactions, finalBalance, finalAddress := prepareTransactions(initialBalance)
 
 		var sent []int
+        var unblocked bool = false
 
 		for i:=1; i<len(transactions); i++ {
 		    sent = append(sent, i)
@@ -2031,8 +2032,12 @@ func TestProcessedBlockFailure(t *testing.T) {
 		    if i == offset {
 		    	fmt.Printf("\n==>TXN offset%v\n", offset)
 				transactions[0]() // unblock the transactions
+				unblocked = true
 			}
 			transactions[i]()
+		}
+		if ! unblocked{
+			transactions[0]() // unblock the transactions
 		}
 		offset++ // next time start further in the future
 		fmt.Printf("send chained transations")
