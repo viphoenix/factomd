@@ -11,7 +11,6 @@ import (
 	"github.com/FactomProject/factomd/common/messages"
 	"github.com/FactomProject/factomd/common/primitives/random"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"os"
 	"reflect"
@@ -2014,6 +2013,9 @@ func TestProcessedBlockFailure(t *testing.T) {
 		return transactions, bal, i
 	}
 
+	// offset to send initial blocking transaction
+	offset := 1
+
 	mkTransactions := func() { // txnGenerator
 		// fund the start address
 		sendTxn(state0, initialBalance, bankSecret, depositAddresses[0], ecPrice)
@@ -2021,16 +2023,19 @@ func TestProcessedBlockFailure(t *testing.T) {
 		waitForDeposit(0, initialBalance)
         transactions, finalBalance, finalAddress := prepareTransactions(initialBalance)
 
-		var randomSeed int64 = time.Now().Unix()
-		var i int
 		var sent []int
 
-		r := rand.New(rand.NewSource(randomSeed))
-		for _, i = range r.Perm(len(transactions))  {
+		for i:=1; i<len(transactions); i++ {
 		    sent = append(sent, i)
+		    //fmt.Printf("offset: %v <=> i:%v", offset, i)
+		    if i == offset {
+		    	fmt.Printf("\n==>TXN offset%v\n", offset)
+				transactions[0]() // unblock the transactions
+			}
 			transactions[i]()
 		}
-		fmt.Printf("send chained transations ordered by randomSeed : %v \n", randomSeed)
+		offset++ // next time start further in the future
+		fmt.Printf("send chained transations")
 		waitForDeposit(finalAddress, finalBalance)
 
 		// empty final address returning remaining funds to bank
@@ -2039,7 +2044,7 @@ func TestProcessedBlockFailure(t *testing.T) {
 	}
 	_ = mkTransactions
 
-	for i:= 0; i< 80; i++ {
+	for x:= 1; x<= 120; x++ {
 		mkTransactions()
 		WaitBlocks(state0, 1)
 	}
